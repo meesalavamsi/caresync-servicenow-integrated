@@ -1,16 +1,15 @@
 import { NavTab } from '../types';
 
 /**
- * Role → allowed navigation tabs. Mirrors the SOURCE project's RBAC rules,
- * mapped onto the TARGET tab set. The backend also guards protected operations;
- * this only controls what a user can navigate to (defense-in-depth, not the
- * only line of defense).
+ * CareSync Role-Based Access Control Matrix (RBAC).
+ * Enforces role-specific navigation for Doctor, Nurse, Receptionist, Admin, and Patient Family.
  */
 export const RBAC_TABS: Record<string, NavTab[]> = {
   patient: ['family-portal'],
-  nurse: ['overview', 'ward-dashboard', 'care-tasks', 'patient-360', 'medication-safety', 'bed-management', 'family-portal'],
+  receptionist: ['patient-intake', 'bed-management', 'family-portal'],
+  nurse: ['overview', 'ward-dashboard', 'care-tasks', 'patient-360', 'medication-safety', 'bed-management'],
   doctor: ['overview', 'ward-dashboard', 'care-tasks', 'patient-360', 'medication-safety', 'bed-management', 'family-portal', 'analytics'],
-  admin: ['overview', 'ward-dashboard', 'care-tasks', 'patient-360', 'medication-safety', 'bed-management', 'family-portal', 'analytics', 'administration'],
+  admin: ['overview', 'patient-intake', 'ward-dashboard', 'care-tasks', 'patient-360', 'medication-safety', 'bed-management', 'family-portal', 'analytics', 'administration'],
 };
 
 export function tabsForRole(role: string | undefined): NavTab[] {

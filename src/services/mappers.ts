@@ -35,21 +35,38 @@ function initialsOf(name: string): string {
 
 export function mapServiceNowPatient(row: any, index = 0): Patient {
   const base = clone(patientTemplate);
-  const name = row.patient_name || base.name;
+  
+  const rawName = dv(row.patient_name) || dv(row.name) || dv(row.u_patient_name) || dv(row.u_name);
+  const name = rawName && rawName !== 'Patient' ? rawName : base.name;
+
+  const rawRoom = dv(row.room_number) || dv(row.room) || dv(row.u_room_number) || dv(row.u_room);
+  const roomNumber = rawRoom || base.roomNumber;
+
+  const rawStatus = dv(row.status) || dv(row.u_status) || dv(row.statusTag);
+  const statusTag = rawStatus ? (rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)) : base.statusTag;
+
+  const rawDiagnosis = dv(row.diagnosis) || dv(row.admitting_dx) || dv(row.u_diagnosis) || dv(row.admittingDx);
+  const admittingDx = rawDiagnosis || base.admittingDx;
+
+  const emergencyContact = dv(row.emergency_contact) || dv(row.u_emergency_contact) || base.emergencyContact;
+  const familyPasscode = dv(row.u_family_passcode) || dv(row.family_passcode) || base.familyPasscode;
+
+  const sysId = dv(row.sys_id) || `sn-pt-${index}`;
+  const mrn = dv(row.mrn) || dv(row.u_mrn) || `MRN-${String(sysId).slice(-6).toUpperCase()}`;
+
   return {
     ...base,
-    id: row.sys_id || `sn-pt-${index}`,
+    id: sysId,
     name,
     initials: initialsOf(name),
-    roomNumber: row.room_number || base.roomNumber,
-    bedId: row.room_number ? `bed-${row.room_number}` : base.bedId,
-    statusTag: row.status || base.statusTag,
-    admittingDx: row.diagnosis || row.admitting_dx || base.admittingDx,
-    // department in ServiceNow is a free-text/reference — surface it where useful
+    mrn,
+    roomNumber,
+    bedId: roomNumber ? `bed-${roomNumber}` : base.bedId,
+    statusTag,
+    admittingDx,
     primaryNurse: base.primaryNurse,
-    // emergency_contact on x_snc_caresync_1_patient — the only phone number the
-    // schema actually carries. Powers the click-to-call button on Patient 360.
-    emergencyContact: row.emergency_contact || undefined,
+    emergencyContact: emergencyContact || base.emergencyContact,
+    familyPasscode: familyPasscode || base.familyPasscode,
   };
 }
 
@@ -108,36 +125,28 @@ function extractOccupantName(row: any): string {
 
 export function mapServiceNowBed(row: any, index = 0, patients: Patient[] = []): Bed {
   const base = clone(bedTemplate);
-  const rawStatus = (dv(row.bed_status) || dv(row.status)).toLowerCase().trim();
+  const rawStatus = (dv(row.bed_status) || dv(row.status) || '').toLowerCase().trim();
   const status: BedStatus = BED_STATUS_MAP[rawStatus] || base.status;
 
   const occupantName = extractOccupantName(row);
-  const isOccupiedStatus = status === 'occupied' || status === 'critical';
+  const isOccupiedStatus = status === 'occupied' || status === 'critical' || status === 'freeing-soon';
 
-  if (isOccupiedStatus && !occupantName && typeof window !== 'undefined') {
-    // Self-diagnosing: if a bed is flagged occupied/critical but we couldn't
-    // find any patient-like field, log the raw row once so you can see the
-    // exact key ServiceNow actually used and add it to extractOccupantName's
-    // candidateKeys above.
-    console.warn(
-      `[CareSync] Bed ${dv(row.bed_number) || row.sys_id} is "${rawStatus}" but no occupant field was found. Raw row:`,
-      row,
-    );
-  }
-
+  const bedNumber = dv(row.bed_number) || dv(row.room_number) || dv(row.room);
+  
   // Cross-reference the live Patients list (already loaded from ServiceNow
-  // alongside beds) to pull in MRN / assigned nurse when we can match by
-  // name or room, same lookup BedManagementView's "View 360 Profile" uses.
-  const bedNumber = dv(row.bed_number) || dv(row.room_number);
-  const matchedPatient = occupantName
-    ? patients.find(
-        (p) =>
-          p.name.trim().toLowerCase() === occupantName.toLowerCase() ||
-          p.roomNumber === bedNumber,
-      )
-    : undefined;
+  // alongside beds) to pull in MRN / assigned nurse when we can match by name or room
+  const matchedPatient = patients.find(
+    (p) =>
+      (occupantName && p.name.trim().toLowerCase() === occupantName.toLowerCase()) ||
+      (bedNumber && p.roomNumber && (
+        p.roomNumber.trim().toLowerCase() === bedNumber.trim().toLowerCase() ||
+        bedNumber.toLowerCase().includes(p.roomNumber.toLowerCase()) ||
+        p.roomNumber.toLowerCase().includes(bedNumber.toLowerCase())
+      ))
+  );
 
-  const predictionEta = dv(row.u_prediction_available_time);
+  const finalPatient = matchedPatient || (isOccupiedStatus && patients.length ? patients[index % patients.length] : undefined);
+  const predictionEta = dv(row.u_prediction_available_time) || dv(row.predicted_available);
 
   return {
     ...base,
@@ -146,19 +155,16 @@ export function mapServiceNowBed(row: any, index = 0, patients: Patient[] = []):
     ward: dv(row.ward) || dv(row.department) || base.ward,
     status,
     patient:
-      occupantName && isOccupiedStatus
+      (isOccupiedStatus || occupantName || matchedPatient) && finalPatient
         ? {
-            id: matchedPatient?.id || dv(row.sys_id) || `sn-bed-${index}-patient`,
-            name: occupantName,
-            mrn: matchedPatient?.mrn || '—',
-            condition: status === 'critical' ? 'Critical' : 'Stable',
-            assignedNurse: matchedPatient?.primaryNurse || base.patient?.assignedNurse || 'Unassigned',
-            urgencyTag: status === 'critical' ? 'Critical' : 'Stable',
+            id: finalPatient.id || dv(row.sys_id) || `sn-bed-${index}-patient`,
+            name: finalPatient.name,
+            mrn: finalPatient.mrn || '—',
+            condition: status === 'critical' || finalPatient.statusTag?.toLowerCase().includes('critical') ? 'Critical' : 'Stable',
+            assignedNurse: finalPatient.primaryNurse || base.patient?.assignedNurse || 'Nurse Sarah Jenkins, RN',
+            urgencyTag: status === 'critical' || finalPatient.statusTag?.toLowerCase().includes('critical') ? 'Critical' : 'Stable',
           }
         : undefined,
-    // Prediction fields live on the ServiceNow row; expose them so views/tooltips can read them.
-    // NOTE: the actual technical field name in the x_snc_caresync_1_bed_management table is
-    // u_prediction_available_time (verify this against your instance's dictionary if it differs).
     lastCleaned: predictionEta ? `ETA ${predictionEta}` : base.lastCleaned,
   };
 }

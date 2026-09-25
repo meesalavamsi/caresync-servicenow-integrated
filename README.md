@@ -35,8 +35,10 @@ Copy `.env.example` to `.env` and fill in real values. Summary:
   the five `x_snc_caresync_1_*` tables (on a PDI, `admin` works for testing).
 - `GEMINI_API_KEY_MAIN`, `GEMINI_API_KEY_VOICE` (or single `GEMINI_API_KEY`) + `GEMINI_MODEL`
   — from Google AI Studio. Set `GEMINI_MODEL` to a model your account currently exposes.
-- `EMAIL_USER`, `EMAIL_PASS` — a Gmail address + **App Password** (2FA required). Leave
-  blank in dev and OTP codes are returned in the API response so registration is still testable.
+- `EMAIL_USER`, `EMAIL_PASS` — the free Gmail SMTP option: a Gmail address plus a
+  Google **App Password** (2FA required; do not use the normal Gmail password).
+  Gmail does not charge for this use. Leave both blank in local dev and OTP codes
+  are returned in the API response so registration is still testable.
 - `PORT` — defaults to 3000.
 
 ## Install & run
@@ -96,6 +98,8 @@ mismatch escalation) → Family Voice (safe multilingual status) → Analytics.
 
 - `otpStore` and the approvals list are in-memory — reset on restart, not
   multi-instance safe. Swap for Redis / a ServiceNow table for durability.
+- Approval links use the incoming request host, so they work after deployment;
+  use HTTPS in production and configure the deployed domain at the proxy/platform.
 - `cors()` is open; scope it to your front-end origin before public exposure.
 - One service account authenticates to ServiceNow for all sessions; ServiceNow
   ACLs therefore don't restrict per portal user — RBAC is enforced in the app

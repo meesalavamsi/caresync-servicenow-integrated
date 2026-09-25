@@ -1,24 +1,15 @@
-/**
- * Single typed API layer for the React app. Components call these helpers
- * instead of scattering fetch() everywhere. Everything is same-origin (/api/*)
- * because the Express server serves both the API and the Vite app.
- */
+import { CareSyncTicket, UserSession, DashboardMetrics, IntegrationHealth, SLAStatus, SystemNotification } from '../types';
+
+export type SessionUser = UserSession;
 
 export interface HealthStatus {
   status: string;
+  service: string;
+  mode: 'live' | 'mock';
   serviceNow: { connected: boolean; message: string; configured: boolean };
   ai: { main: boolean; voice: boolean };
   email: { configured: boolean };
   timestamp: string;
-}
-
-export interface SessionUser {
-  sys_id: string;
-  userId: string;
-  name: string;
-  email: string;
-  role: 'patient' | 'nurse' | 'doctor' | 'admin' | string;
-  dept: string;
 }
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
@@ -34,10 +25,16 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  // Health / connection
+  // Health checks
   health: () => request<HealthStatus>('/api/health'),
+  getServiceNowHealth: () => request<{ success: boolean; instanceUrl: string; mode: 'live' | 'mock'; connected: boolean; ping: string }>('/api/servicenow/health'),
 
   // Auth
+  login: (userId: string, password?: string, role?: string) =>
+    request<{ success: boolean; user: UserSession }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ userId, password, role }),
+    }),
   sendOtp: (email: string) =>
     request<{ success: boolean; devOtp?: string }>('/api/auth/send-otp', {
       method: 'POST',
@@ -48,71 +45,77 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  login: (userId: string, password: string) =>
-    request<{ success: boolean; user: SessionUser }>('/api/auth/login', {
+
+  // Tickets
+  getTickets: (params?: { role?: string; status?: string; category?: string; search?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.role) query.append('role', params.role);
+    if (params?.status) query.append('status', params.status);
+    if (params?.category) query.append('category', params.category);
+    if (params?.search) query.append('search', params.search);
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return request<{ success: boolean; count: number; tickets: CareSyncTicket[] }>(`/api/tickets${qs}`);
+  },
+
+  getTicketById: (id: string) =>
+    request<{ success: boolean; ticket: CareSyncTicket }>(`/api/tickets/${id}`),
+
+  createTicket: (payload: {
+    issueType?: string;
+    category: string;
+    subcategory?: string;
+    shortDescription: string;
+    description: string;
+    location?: string;
+    department?: string;
+    priority?: string;
+    caller?: string;
+    callerRole?: string;
+    callerEmail?: string;
+    patientId?: string;
+    patientName?: string;
+    attachment?: { fileName: string; fileSize?: string };
+  }) =>
+    request<{ success: boolean; message: string; ticket: CareSyncTicket }>('/api/tickets', {
       method: 'POST',
-      body: JSON.stringify({ userId, password }),
+      body: JSON.stringify(payload),
     }),
+
+  updateTicket: (id: string, payload: {
+    status?: string;
+    assignedTo?: string;
+    priority?: string;
+    workNote?: string;
+    resolutionNotes?: string;
+    actor?: string;
+  }) =>
+    request<{ success: boolean; message: string; ticket: CareSyncTicket }>(`/api/tickets/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  addComment: (id: string, text: string, author: string, role: string) =>
+    request<{ success: boolean; ticket: CareSyncTicket }>(`/api/tickets/${id}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ text, author, role }),
+    }),
+
+  // Dashboard & Notifications
+  getDashboardMetrics: () =>
+    request<{ success: boolean; metrics: DashboardMetrics }>('/api/dashboard'),
 
   getDashboard: () => request<{ success: boolean; result: any }>('/api/dashboard'),
 
-  // Patients
+  getNotifications: () =>
+    request<{ success: boolean; notifications: SystemNotification[] }>('/api/notifications'),
+
+  // Legacy Patient & Incident & Clinical helpers
   getPatients: () => request<{ success: boolean; patients: any[] }>('/api/patients'),
-  updatePatient: (sysId: string, body: Record<string, any>) =>
-    request<{ success: boolean; patient: any }>(`/api/patients/${sysId}`, {
-      method: 'PUT',
-      body: JSON.stringify(body),
-    }),
-
-  // Handoffs / clinical tasks
-  getHandoffs: () => request<{ success: boolean; tasks: any[] }>('/api/handoffs'),
-  evaluateHandoff: (dictation: string) =>
-    request<{ success: boolean; aiAnalysis: any }>('/api/handoffs/ai-evaluate', {
+  createPatient: (data: Record<string, any>) =>
+    request<{ success: boolean; patient: any }>('/api/patients', {
       method: 'POST',
-      body: JSON.stringify({ dictation }),
+      body: JSON.stringify(data),
     }),
-  submitHandoff: (payload: Record<string, any>) =>
-    request<{ success: boolean; recordId: string }>('/api/handoffs/final-submit', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-
-  // Beds
-  getBeds: () => request<{ success: boolean; beds: any[] }>('/api/beds'),
-  predictBed: (sysId: string, payload: Record<string, any>) =>
-    request<{ success: boolean; aiAnalysis: any }>(`/api/beds/predict/${sysId}`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  notifyBottleneck: (sysId: string, payload: { bedNumber?: string; bottleneckDept: string; eta?: string; confidence?: string; requestedBy?: string }) =>
-    request<{ success: boolean; snTaskId: string | null; emailSent: boolean; emailConfigured: boolean }>(`/api/beds/notify-bottleneck/${sysId}`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-
-  // Family voice
-  familyVoice: (payload: { userPatientId?: string; query: string; language: string }) =>
-    request<{ success: boolean; reply: string; source: 'ai' | 'fallback' }>('/api/family-voice/chat', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-
-  // Medication safety
-  verifyMedication: (payload: { patientId: string; scannedBarcode: string; expectedBarcode: string }) =>
-    request<{ success: boolean; match: boolean; escalated: boolean; message: string }>('/api/medications/verify', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-
-  // Approvals
-  getApprovals: () => request<{ success: boolean; approvals: any[] }>('/api/approvals'),
-  reviewApproval: (id: string, action: 'approve' | 'reject') =>
-    request<{ success: boolean; action: string }>(`/api/approvals/${id}`, {
-      method: 'POST',
-      body: JSON.stringify({ action }),
-    }),
-
-  // Incidents (real ServiceNow incident table when configured)
   getIncidents: () => request<{ success: boolean; configured: boolean; incidents: any[] }>('/api/incidents'),
   createIncident: (payload: Record<string, any>) =>
     request<{ success: boolean; incident: any }>('/api/incidents', {
@@ -123,6 +126,36 @@ export const api = {
     request<{ success: boolean; incident: any }>(`/api/incidents/${sysId}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
+    }),
+  predictBed: (sysId: string, payload: Record<string, any>) =>
+    request<{ success: boolean; aiAnalysis: any }>(`/api/beds/predict/${sysId}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  notifyBottleneck: (sysId: string, payload: any) =>
+    request<{ success: boolean; snTaskId: string | null; emailSent: boolean; emailConfigured: boolean }>(`/api/beds/notify-bottleneck/${sysId}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  evaluateHandoff: (dictation: string) =>
+    request<{ success: boolean; aiAnalysis: any }>('/api/handoffs/ai-evaluate', {
+      method: 'POST',
+      body: JSON.stringify({ dictation }),
+    }),
+  submitHandoff: (payload: Record<string, any>) =>
+    request<{ success: boolean; recordId: string }>('/api/handoffs/final-submit', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  familyVoice: (payload: any) =>
+    request<{ success: boolean; reply: string; source: 'ai' | 'fallback' }>('/api/family-voice/chat', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  verifyMedication: (payload: any) =>
+    request<{ success: boolean; match: boolean; escalated: boolean; message: string }>('/api/medications/verify', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
 };
 

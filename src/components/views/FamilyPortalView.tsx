@@ -74,6 +74,8 @@ export const FamilyPortalView: React.FC<FamilyPortalViewProps> = ({
   ]);
 
   const [inputMessage, setInputMessage] = useState('');
+  const [passcode, setPasscode] = useState('');
+  const [passcodeSuccess, setPasscodeSuccess] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [isListening, setIsListening] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
@@ -304,6 +306,9 @@ export const FamilyPortalView: React.FC<FamilyPortalViewProps> = ({
     try {
       const { reply, source } = await api.familyVoice({
         userPatientId: activePatient?.id,
+        patientName: activePatient?.name,
+        roomNumber: activePatient?.roomNumber,
+        statusTag: activePatient?.statusTag,
         query: text,
         language: LANGUAGE_NAMES[selectedLanguage] || 'English',
       });
@@ -400,6 +405,57 @@ export const FamilyPortalView: React.FC<FamilyPortalViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Family Access Passcode Verification Bar */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center font-bold">
+            🔑
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-900 text-xs">Family Member Passcode Verification</h3>
+            <p className="text-[11px] text-slate-500">Enter the access passcode provided by the receptionist upon intake to view your relative's room status.</p>
+          </div>
+        </div>
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          const code = passcode.trim().toUpperCase();
+          if (!code) return;
+          const found = patients.find(p => 
+            p.familyPasscode?.toUpperCase() === code || 
+            p.mrn?.toUpperCase() === code ||
+            p.id.toUpperCase() === code
+          );
+          if (found) {
+            setPasscodeSuccess(`✓ Access Verified for Patient ${found.name} (Room ${found.roomNumber})!`);
+            setError(null);
+          } else {
+            setError(`Passcode "${code}" not found. Please verify the code given by the receptionist upon patient intake.`);
+            setPasscodeSuccess(null);
+          }
+        }} className="flex items-center gap-2 w-full md:w-auto">
+          <input
+            type="text"
+            placeholder="e.g. FAM-8821 or MRN"
+            value={passcode}
+            onChange={(e) => setPasscode(e.target.value)}
+            className="px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono uppercase font-bold focus:bg-white focus:border-teal-500 focus:outline-none w-full md:w-48"
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white font-bold rounded-xl text-xs whitespace-nowrap transition-colors shadow-xs"
+          >
+            Verify Passcode
+          </button>
+        </form>
+      </div>
+
+      {passcodeSuccess && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+          <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+          {passcodeSuccess}
+        </div>
+      )}
 
       {/* Patient safe-context strip — real ServiceNow-backed patient, not hardcoded */}
       {activePatient && (

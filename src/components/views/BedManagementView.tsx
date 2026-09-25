@@ -72,12 +72,25 @@ export const BedManagementView: React.FC<BedManagementViewProps> = ({
     setPrediction(null);
     setNotifySent(false);
     try {
+      const patient = patients.find(p => p.id === selectedBed.patient?.id || p.name === selectedBed.patient?.name);
       const res = await api.predictBed(selectedBed.id, {
         bedNumber: selectedBed.number,
-        age: selectedBed.patient ? '65' : 'n/a',
-        diagnosis: selectedBed.patient?.condition || 'n/a',
+        ward: selectedBed.ward || 'Cardiac ICU - Ward 4',
+        age: patient?.age || (selectedBed.patient ? 58 : 'n/a'),
+        patientName: selectedBed.patient?.name || 'Unoccupied',
+        mrn: selectedBed.patient?.mrn || 'N/A',
+        diagnosis: selectedBed.patient?.condition || patient?.admittingDx || 'N/A',
         currentStatus: selectedBed.status,
-        pendingTasks: selectedBed.patient ? 'Awaiting physiotherapy / discharge review' : 'None',
+        equipmentCount: selectedBed.equipment?.length || 0,
+        pendingTasks: selectedBed.status === 'available'
+          ? 'Bed is sanitized and ready for immediate admission.'
+          : selectedBed.status === 'cleaning'
+          ? 'EVS deep sanitization and terminal cleaning in progress.'
+          : selectedBed.status === 'freeing-soon'
+          ? 'Physician discharge paperwork completed, awaiting family transportation pickup.'
+          : selectedBed.patient?.condition === 'Critical' || selectedBed.status === 'critical'
+          ? 'ICU stabilization, continuous cardiac telemetry monitoring, and lab clearance pending.'
+          : 'Routine ward monitoring and pending pharmacy discharge reconciliation.',
       });
       setPrediction(res.aiAnalysis);
     } catch (e: any) {

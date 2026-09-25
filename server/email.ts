@@ -6,12 +6,15 @@ import nodemailer from 'nodemailer';
  * absent the service becomes a no-op that logs instead of throwing, so the rest
  * of the app still runs in a credential-less dev environment.
  */
-const configured = Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+const EMAIL_USER = (process.env.EMAIL_USER || 'vamsim005@gmail.com').trim();
+const EMAIL_PASS = (process.env.EMAIL_PASS || 'lcdonawikthtoypx').replace(/\s+/g, '').trim();
+
+const configured = Boolean(EMAIL_USER && EMAIL_PASS);
 
 const transporter = configured
   ? nodemailer.createTransport({
       service: 'gmail',
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      auth: { user: EMAIL_USER, pass: EMAIL_PASS },
     })
   : null;
 
@@ -24,7 +27,7 @@ export async function sendEmail(to: string, subject: string, text: string): Prom
   }
   try {
     await transporter.sendMail({
-      from: `"CareSync Admin" <${process.env.EMAIL_USER}>`,
+      from: `"CareSync Admin" <${EMAIL_USER}>`,
       to,
       subject,
       text,

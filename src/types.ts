@@ -1,5 +1,14 @@
+export type UserRole = 'doctor' | 'nurse' | 'receptionist' | 'staff' | 'it_support' | 'admin' | 'patient';
+
 export type NavTab = 
+  | 'dashboard'
+  | 'raise-ticket'
+  | 'my-tickets'
+  | 'it-support'
+  | 'admin-dashboard'
+  | 'notifications'
   | 'overview'
+  | 'patient-intake'
   | 'ward-dashboard'
   | 'care-tasks'
   | 'patient-360'
@@ -18,6 +27,132 @@ export type WardLocation =
 
 export type BedStatus = 'available' | 'occupied' | 'cleaning' | 'critical' | 'freeing-soon';
 
+export type TicketIssueType = 'Incident' | 'Request' | 'Support Task';
+
+export type TicketCategory = 
+  | 'Hardware' 
+  | 'Software' 
+  | 'Network' 
+  | 'Access & Authentication' 
+  | 'Printer' 
+  | 'Application' 
+  | 'Patient Information System' 
+  | 'Medical Equipment' 
+  | 'Bed Management' 
+  | 'Other';
+
+export type TicketPriority = 'Low' | 'Medium' | 'High' | 'Critical';
+
+export type TicketStatus = 'New' | 'Assigned' | 'In Progress' | 'Waiting' | 'Resolved' | 'Closed';
+
+export type SLAStatus = 'On Track' | 'At Risk' | 'Breached' | 'Met';
+
+export interface TimelineEvent {
+  id: string;
+  timestamp: string;
+  time: string;
+  title: string;
+  description?: string;
+  actor?: string;
+}
+
+export interface TicketWorkNote {
+  id: string;
+  author: string;
+  role: string;
+  timestamp: string;
+  text: string;
+  isInternal?: boolean;
+}
+
+export interface TicketAttachment {
+  id: string;
+  fileName: string;
+  fileSize: string;
+  fileType: string;
+  url?: string;
+  uploadedAt: string;
+}
+
+export interface CareSyncTicket {
+  id: string;
+  number: string;
+  sysId: string;
+  shortDescription: string;
+  description: string;
+  issueType: TicketIssueType;
+  category: TicketCategory;
+  subcategory: string;
+  priority: TicketPriority;
+  status: TicketStatus;
+  caller: string;
+  callerRole?: UserRole;
+  callerEmail?: string;
+  assignedTo: string;
+  assignedGroup?: string;
+  department: string;
+  location: string;
+  patientId?: string;
+  patientName?: string;
+  created: string;
+  updated: string;
+  resolvedAt?: string;
+  closedAt?: string;
+  slaStatus: SLAStatus;
+  slaTimeLeft: string;
+  workNotes: TicketWorkNote[];
+  timeline: TimelineEvent[];
+  attachments: TicketAttachment[];
+  resolutionNotes?: string;
+}
+
+export interface UserSession {
+  sys_id: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  dept: string;
+}
+
+export interface SystemNotification {
+  id: string;
+  ticketNumber: string;
+  ticketId: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'success' | 'alert';
+  timestamp: string;
+  read: boolean;
+}
+
+export interface DashboardMetrics {
+  totalTickets: number;
+  openTickets: number;
+  inProgress: number;
+  waiting: number;
+  resolved: number;
+  closed: number;
+  highPriority: number;
+  slaBreaches: number;
+  avgResolutionTime: string;
+  byCategory: Record<string, number>;
+  byDepartment: Record<string, number>;
+  byPriority: Record<string, number>;
+  byStatus: Record<string, number>;
+}
+
+export interface IntegrationHealth {
+  status: string;
+  mode: 'live' | 'mock';
+  serviceNowConnected: boolean;
+  message: string;
+  instanceUrl: string;
+  timestamp: string;
+}
+
+// ── Legacy / Clinical Interfaces Retained for Codebase Integrity ─────────────
+
 export interface Patient {
   id: string;
   name: string;
@@ -33,6 +168,7 @@ export interface Patient {
   attendingPhysician: string;
   primaryNurse: string;
   emergencyContact?: string;
+  familyPasscode?: string;
   los: string;
   codeStatus: 'Full' | 'DNR' | 'DNI' | 'Limited';
   statusTag: string;
@@ -187,7 +323,7 @@ export interface LiveAuditLog {
 
 export interface ServiceNowIncident {
   id: string;
-  number: string; // e.g. INC0010482
+  number: string;
   sysId: string;
   title: string;
   category: 'Biomedical Equipment' | 'EHR / Epic Bridge' | 'PACS / Imaging' | 'Bedside Telemetry' | 'Pharmacy Pyxis' | 'Network / Wi-Fi';
@@ -209,8 +345,8 @@ export interface ServiceNowIncident {
 
 export interface ServiceNowITRequest {
   id: string;
-  reqNumber: string; // e.g. REQ008491
-  ritmNumber: string; // e.g. RITM009182
+  reqNumber: string;
+  ritmNumber: string;
   item: string;
   requestedFor: string;
   department: string;
