@@ -16,8 +16,10 @@ export const RaiseTicketView: React.FC<RaiseTicketViewProps> = ({
   const [issueType, setIssueType] = useState<TicketIssueType>('Incident');
   const [category, setCategory] = useState<TicketCategory>('Hardware');
   const [subcategory, setSubcategory] = useState('Printer');
-  const [shortDescription, setShortDescription] = useState('');
-  const [description, setDescription] = useState('');
+  const [shortDescription, setShortDescription] = useState('Radiology printer is not printing');
+  const [description, setDescription] = useState(
+    'The printer near Radiology workstation 2 is showing an error and is not printing patient diagnostic reports.'
+  );
   const [location, setLocation] = useState('Radiology Department - Workstation 2');
   const [department, setDepartment] = useState(user.dept || 'Radiology');
   const [priority, setPriority] = useState<TicketPriority>('High');
