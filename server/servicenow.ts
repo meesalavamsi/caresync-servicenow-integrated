@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import axios, { AxiosInstance } from 'axios';
 
 /**
@@ -13,7 +14,10 @@ class ServiceNowClient {
   mode: 'live' | 'mock';
 
   constructor() {
-    this.instanceUrl = (process.env.SERVICENOW_INSTANCE || process.env.SERVICENOW_INSTANCE_URL || 'https://dev183600.service-now.com').trim().replace(/\/$/, '');
+    const rawUrl = (process.env.SERVICENOW_INSTANCE || process.env.SERVICENOW_INSTANCE_URL || 'https://dev183600.service-now.com').trim();
+    // Safely extract base origin (e.g. https://dev183600.service-now.com) even if a full UI URL was pasted
+    this.instanceUrl = rawUrl.replace(/^(https?:\/\/[^\/]+).*/i, '$1').replace(/\/$/, '');
+    
     this.username = (process.env.SERVICENOW_USERNAME || 'admin').trim();
     this.password = (process.env.SERVICENOW_PASSWORD || `XlC5a]MRWD5Arl{}1,seO^vh:JRa5<AT#H^{@j*Jr$=`).trim();
     
@@ -64,6 +68,7 @@ class ServiceNowClient {
 
   private getCandidateTables(table: string): string[] {
     const TABLE_ALIASES: Record<string, string[]> = {
+      'incident': ['incident', 'x_1850353_caresy_0_incident', 'x_1850353_caresy_0_caresync_incidents', 'x_1850353_caresy_0_clin_task', 'x_snc_caresync_1_incident'],
       'x_snc_caresync_1_patient': ['x_1850353_caresy_0_patient', 'x_snc_caresync_1_patient'],
       'x_snc_caresync_1_clinical_task': ['x_1850353_caresy_0_clin_task', 'x_snc_caresync_1_clinical_task'],
       'x_snc_caresync_1_bed_management': ['x_1850353_caresy_0_bed_mgmt', 'x_snc_caresync_1_bed_management'],

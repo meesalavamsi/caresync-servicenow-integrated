@@ -49,7 +49,17 @@ export interface MockTicket {
   resolutionNotes?: string;
 }
 
-let ticketCounter = 10250;
+declare global {
+  var __ticketCounter: number | undefined;
+}
+
+const getNextTicketCounter = () => {
+  if (typeof globalThis.__ticketCounter !== 'number') {
+    globalThis.__ticketCounter = 10250;
+  }
+  globalThis.__ticketCounter += 1;
+  return globalThis.__ticketCounter;
+};
 
 const initialTickets: MockTicket[] = [
   {
@@ -274,9 +284,9 @@ class MockTicketStore {
     patientName?: string;
     attachmentName?: string;
   }): MockTicket {
-    ticketCounter++;
+    const nextCount = getNextTicketCounter();
     const prefix = (data.issueType === 'Request') ? 'REQ' : 'INC';
-    const num = `${prefix}00${ticketCounter}`;
+    const num = `${prefix}00${nextCount}`;
     const now = new Date();
     const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 

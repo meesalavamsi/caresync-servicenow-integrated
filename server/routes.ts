@@ -179,6 +179,7 @@ export function registerRoutes(app: Express) {
     }
 
     let createdTicket: any = null;
+    let ticketSource: 'servicenow_pdi' | 'local_failsafe' = 'local_failsafe';
 
     if (snClient.mode === 'live' && snClient.configured) {
       try {
@@ -192,6 +193,7 @@ export function registerRoutes(app: Express) {
           location: location || '',
         });
         createdTicket = mapIncidentToTicket(createdSN);
+        ticketSource = 'servicenow_pdi';
       } catch (err: any) {
         console.warn('[ServiceNow Ticket Creation Warning]: Falling back to local store:', err?.message);
       }
@@ -210,6 +212,7 @@ export function registerRoutes(app: Express) {
     res.status(201).json({
       success: true,
       message: 'Ticket created successfully',
+      source: ticketSource,
       ticket: createdTicket
     });
   });
