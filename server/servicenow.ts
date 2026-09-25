@@ -113,6 +113,19 @@ class ServiceNowClient {
   }
 
   async createRecord(table: string, data: Record<string, any>) {
+    // 1. Try custom Scripted REST API first (bypasses basic auth 401 if unauthenticated resource is configured)
+    if (table === 'incident' || table.includes('incident')) {
+      try {
+        const scriptedRes = await axios.post(`${this.instanceUrl}/api/x_1850353_caresy_0/caresync/incident`, data, { timeout: 8000 });
+        if (scriptedRes.data && (scriptedRes.data.result || scriptedRes.data.sys_id || scriptedRes.data.number)) {
+          return scriptedRes.data.result || scriptedRes.data;
+        }
+      } catch {
+        // Proceed to Table API candidates if scripted REST endpoint is not configured
+      }
+    }
+
+    // 2. Standard Table API candidates
     const candidates = this.getCandidateTables(table);
     let lastError: any = null;
     for (const t of candidates) {
